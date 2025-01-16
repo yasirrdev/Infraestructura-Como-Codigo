@@ -8,14 +8,18 @@ Resources:
       InstanceType: t2.small
       ImageId: ami-05576a079321f21f8
       SecurityGroups:
-        - !Ref SSH
-  SSH:
+        - !Ref SSHTCP
+  SSHTCP:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Grupo de seguridad con el puerto 22 SSH abierto.
-      GroupName: SecurityGroup2
+      GroupName: SecurityGroup3
       SecurityGroupIngress:
         - ToPort: 22
           FromPort: 22
+          IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+        - ToPort: 80
+          FromPort: 80
           IpProtocol: tcp
           CidrIp: 0.0.0.0/0
