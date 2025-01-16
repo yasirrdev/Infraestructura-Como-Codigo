@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Basica"
+#Una pila con un solo recurso con un grupo de seguridad en el puerto ssh
+
+Resources:
+    SSH:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Grupo de seguridad con el puerto 22 SSH abierto.
+        GroupName: SecurityGroup
+        SecurityGroupIngress:
+          - ToPort: 22
+            FromPort: 22
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0

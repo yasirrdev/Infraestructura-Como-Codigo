@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Basica"
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.small
+      ImageId: ami-05576a079321f21f8
+      SecurityGroups:
+        - !Ref SSH
+  SSH:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Grupo de seguridad con el puerto 22 SSH abierto.
+      GroupName: SecurityGroup2
+      SecurityGroupIngress:
+        - ToPort: 22
+          FromPort: 22
+          IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
