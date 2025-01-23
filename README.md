@@ -31,6 +31,7 @@ El proyecto incluye tecnologías clave para la infraestructura como código:
 
 ```plaintext
 .
-├── create-instance.yaml       # Plantilla para crear una instancia EC2
-├── create-securitygroup.yaml  # Plantilla para configurar un grupo de seguridad
-└── install_tomcat.sh          # Script de instalación de Tomcat
+├── create-instance.yaml                  # Plantilla para crear una instancia EC2
+├── create-securitygroup.yaml             # Plantilla para configurar un grupo de seguridad
+├── install_tomcat.sh                     # Script de instalación de Tomcat
+└── install-tomcat-instance.yaml          # Plantilla para crear una instancia EC2 con de instalación de Tomcat
