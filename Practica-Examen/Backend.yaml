@@ -1,35 +1,33 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Plantilla Básica para configurar Apache Tomcat"
+Description: "Plantilla Backend"
 
 Parameters: 
   InstanceTypeParameter: 
     Description: Elige un tipo de instancia. 
     Type: String
-    Default: t2.micro
+    Default: t2.large
     AllowedValues:
       - t2.micro
       - m1.small
-      - m1.large
+      - t2.large
   LatestAmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/canonical/ubuntu/server/jammy/stable/current/amd64/hvm/ebs-gp2/ami-id'
+
 Resources:
-  TomcatInstance:
+  Backend:
     Type: AWS::EC2::Instance
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: 1
     Properties:
       InstanceType: !Ref InstanceTypeParameter
       ImageId: !Ref LatestAmiId
       SecurityGroups:
-        - !Ref SSHTCP
+        - !ImportValue securitygroup-secgroupssh
       UserData: 
         Fn::Base64: 
           !Sub |
             #!/bin/bash -xe
             exec > /tmp/userdata.log 2>&1
+
             #====================================================================#
             # PREPARAR BOOTSTRAP DE CFN HELPER SCRIPTS
             #====================================================================#
@@ -37,82 +35,68 @@ Resources:
             apt install python3-pip -y
             pip3 install --break-system-packages https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
             ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
+            apt update -y
+            apt install -y openjdk-21-jdk git maven
 
-
-            sudo sed -i 's/^\$nrconf{restart} = "i";/\$nrconf{restart} = "a";/' /etc/needrestart/needrestart.conf
-            sudo sed -i 's/^\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/' /etc/needrestart/needrestart.conf
-            sudo sed -i 's/^\$nrconf{checks} = 1;/\$nrconf{checks} = 0;/' /etc/needrestart/needrestart.conf
-
+            # Crear usuario Tomcat
             useradd -m -d /opt/tomcat -U -s /bin/false tomcat
 
-            # apt upgrade -y
-            apt install openjdk-21-jdk -y
-
+            # Descargar y configurar Tomcat
             cd /tmp
-
             wget https://dlcdn.apache.org/tomcat/tomcat-11/v11.0.2/bin/apache-tomcat-11.0.2.tar.gz
             tar xzvf apache-tomcat-11*tar.gz -C /opt/tomcat --strip-components=1
-
             chown -R tomcat:tomcat /opt/tomcat/
             chmod -R u+x /opt/tomcat/bin
 
+            # Configurar usuarios de Tomcat
             sed -i '/<\/tomcat-users>/i \
             <role rolename="manager-gui" />\n<user username="manager" password="manager_password" roles="manager-gui" />\n<role rolename="admin-gui" />\n<user username="admin" password="admin_password" roles="manager-gui,admin-gui" />' /opt/tomcat/conf/tomcat-users.xml
+            sed -i 's/<Valve /<!--<Valve /g; s/\/>/\/>-->/g' /opt/tomcat/webapps/manager/META-INF/context.xml
+            sed -i 's/<Valve /<!--<Valve /g; s/\/>/\/>-->/g' /opt/tomcat/webapps/host-manager/META-INF/context.xml
 
-            sed -i '/<Valve /,/\/>/ s|<Valve|<!--<Valve|; /<Valve /,/\/>/ s|/>|/>-->|' /opt/tomcat/webapps/manager/META-INF/context.xml
-            sed -i '/<Valve /,/\/>/ s|<Valve|<!--<Valve|; /<Valve /,/\/>/ s|/>|/>-->|' /opt/tomcat/webapps/host-manager/META-INF/context.xml
-
+            # Configurar servicio de Tomcat
             echo '[Unit]
             Description=Tomcat
             After=network.target
-
+            
             [Service]
             Type=forking
-
+            
             User=tomcat
             Group=tomcat
-
+            
             Environment="JAVA_HOME=/usr/lib/jvm/java-1.21.0-openjdk-amd64"
-            Environment="JAVA_OPTS=-Djava.security.egd=file:///dev/urandom"
-            Environment="CATALINA_BASE=/opt/tomcat"
             Environment="CATALINA_HOME=/opt/tomcat"
-            Environment="CATALINA_PID=/opt/tomcat/temp/tomcat.pid"
-            Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
-
+            
             ExecStart=/opt/tomcat/bin/startup.sh
             ExecStop=/opt/tomcat/bin/shutdown.sh
-
+            
             RestartSec=10
             Restart=always
-
+            
             [Install]
             WantedBy=multi-user.target' | sudo tee /etc/systemd/system/tomcat.service
-
+            
             systemctl daemon-reload
             systemctl start tomcat
             systemctl enable tomcat
 
-            /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Tomcat --region ${AWS::Region}
+            #  Descargary desplegar Studentify
+            cd /tmp
+            git clone https://github.com/DavidHormigoRamirez/studentify.git
+            chmod +x studentify/gradlew
+            cd studentify
+            ./gradlew build
+            cp build/libs/studentify-1.0.0.war  /opt/tomcat/webapps/studentify.war
+            systemctl restart tomcat
+            /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Backend --region ${AWS::Region}
 
 
-  SSHTCP:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Grupo de seguridad con puertos abiertos para SSH y HTTP.
-      SecurityGroupIngress:
-        - ToPort: 22
-          FromPort: 22
-          IpProtocol: tcp
-          CidrIp: 0.0.0.0/0
-        - ToPort: 80
-          FromPort: 80
-          IpProtocol: tcp
-          CidrIp: 0.0.0.0/0
-        - ToPort: 8080
-          FromPort: 8080
-          IpProtocol: tcp
-          CidrIp: 0.0.0.0/0
-        - ToPort: 443
-          FromPort: 443
-          IpProtocol: tcp
-          CidrIp: 0.0.0.0/0
+
+Outputs:
+  PrivateIP:
+    Description: "IP Privada de la instancia EC2"
+    Value: !GetAtt Backend.PrivateIp
+  HealthEndpoint:
+    Description: "URL de Tomcat"
+    Value: !Sub "http://${TomcatInstance.PrivateIp}:8080"        

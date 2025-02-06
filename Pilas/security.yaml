@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Básica para crear grupo de seguirdad"
+
+Resources: 
+  SSHTCP:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Grupo de seguridad con puertos abiertos para SSH, HTTP, HTTPS, Tomcat.
+        SecurityGroupIngress:
+          - ToPort: 22
+            FromPort: 22
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 80
+            FromPort: 80
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 8080
+            FromPort: 8080
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 443
+            FromPort: 443
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+
+Outputs:
+  SecGroupSSHId:
+    Description: "ID del grupo de seguridad para SSH"
+    Value: !Ref SSHTCP
+    Export:
+      Name: !Sub "${AWS::StackName}-secgroupssh"
+  
