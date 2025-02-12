@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Frontend"
+
+Parameters: 
+  InstanceTypeParameter: 
+    Description: Elige un tipo de instancia. 
+    Type: String
+    Default: t2.large
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - t2.large
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/canonical/ubuntu/server/jammy/stable/current/amd64/hvm/ebs-gp2/ami-id'
+    
+Resources:
+  Frontend:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      ImageId: !Ref LatestAmiId
+      SecurityGroups:
+        - !ImportValue securitygroups-Frontend
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash -xe
+            exec > /tmp/userdata.log 2>&1
+
+            #====================================================================#
+            # PREPARAR BOOTSTRAP DE CFN HELPER SCRIPTS
+            #====================================================================#
+            apt update -y
+            apt install python3-pip -y
+            pip3 install --break-system-packages https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+            ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
+
+            apt update -y
+            apt install apache2 -y
+            systemctl restart apache2
+            a2enmond proxy
+            a2enmod proxyhttp
+            systemctl restart apache2
+
+            echo "<VirtualHost *:80>
+            DocumentRoot /var/www/html/primer-site/frontend_daw
+            ProxyPass /api/ http://172.31.36.147:8080/studentify/api/
+            ProxyPassReverse /api/ http://172.31.36.147:8080/studentify/api/
+            </VirtualHost>" | sudo tee /etc/apache2/sites-available/students.conf
+
+            a2ensite students.conf
+            a2dissite 000-default.conf
+
+            cd /tmp
+            git clone https://github.com/DavidHormigoRamirez/frontend_daw.git
+            
+            cd frontend_daw
+            sed -i "s#fetch('CAMBIAR')#fetch('/api/students')#g" /var/www/students/index.html
+            sed -i "s#fetch('CAMBIAR')#fetch('/api/students')#g" /var/www/students/create.html
+            
+            mkdir /var/www/students
+            cp *.html /var/www/students
+
+            systemctl restart apache2
+            /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Backend --region ${AWS::Region}
+            
+
+Outputs:
+  PrivateIP:
+    Description: "IP Privada de la instancia EC2"
+    Value: !GetAtt Frontend.PublicIp
+  HealthEndpoint:
+    Description: "URL de Tomcat"
+    Value: !Sub "http://${Frontend.PrivateIp}:8080"   

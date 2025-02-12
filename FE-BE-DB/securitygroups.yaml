@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Grupo de Seguridad"
+
+Resources:
+    Frontend:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Grupo de seguridad.
+        GroupName: Frontend
+        SecurityGroupIngress:
+          - ToPort: 22
+            FromPort: 22
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 80
+            FromPort: 80
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+    Backend:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Grupo de seguridad.
+        GroupName: Backend
+        SecurityGroupIngress:
+          - ToPort: 22
+            FromPort: 22
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 3306 
+            FromPort: 3306
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+    Database:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Grupo de seguridad.
+        GroupName: Database
+        SecurityGroupIngress:
+          - ToPort: 3306
+            FromPort: 3306
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0
+          - ToPort: 22
+            FromPort: 22
+            IpProtocol: tcp
+            CidrIp: 0.0.0.0/0            
+
+Outputs:
+  SecGroupFrontendId:
+    Description: "ID del grupo de seguridad para FRONTEND"
+    Value: !Ref Frontend
+    Export:
+      Name: !Sub "${AWS::StackName}-Frontend" 
+  SecGroupBackendId:
+    Description: "ID del grupo de seguridad para BACKEND"
+    Value: !Ref Backend
+    Export:
+      Name: !Sub "${AWS::StackName}-Backend" 
+  SecGroupDatabaseId:
+    Description: "ID del grupo de seguridad para DATABASE"
+    Value: !Ref Database
+    Export:
+      Name: !Sub "${AWS::StackName}-Database"           

@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Database"
+
+Parameters: 
+  InstanceTypeParameter: 
+    Description: Elige un tipo de instancia. 
+    Type: String
+    Default: t2.large
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - t2.large
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/canonical/ubuntu/server/jammy/stable/current/amd64/hvm/ebs-gp2/ami-id'
+  Parameters:
+
+    
+
+Resources:
+  Database:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      ImageId: !Ref LatestAmiId
+      SecurityGroups:
+        - !ImportValue securitygroups-Database
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+          #!/bin/bash
+          exec > /tmp/userdata.log 2>&1
+          #====================================================================#
+          # PREPARAR BOOTSTRAP DE CFN HELPER SCRIPTS
+          #====================================================================#
+          apt update -y
+          apt install python3-pip -y
+          pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+          ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
+          #====================================================================#
+          sudo sed -i 's/^\$nrconf{restart} = "i";/\$nrconf{restart} = "a";/' /etc/needrestart/needrestart.conf
+          sudo sed -i 's/^\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/' /etc/needrestart/needrestart.conf
+          sudo sed -i 's/^\$nrconf{checks} = 1;/\$nrconf{checks} = 0;/' /etc/needrestart/needrestart.conf
+
+          useradd -m -d /opt/tomcat -U -s /bin/false tomcat
+
+          apt update
+          apt upgrade -y
+          apt install openjdk-21-jdk -y
+          
+          #Instalar MySQL Server
+          apt install mysql-server -y
+
+          #Configurar MySQL para permitir acceso remoto
+          sudo sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+
+          # Reiniciar MySQL para aplicar cambios
+          systemctl restart mysql
+          systemctl enable mysql
+
+          #====================================================================#
+          # CREAR BASE DE DATOS Y USUARIO EN MYSQL
+          #====================================================================#
+          DB_NAME="student_db"
+          DB_USER="phpuser"
+          DB_PASSWORD="phpuser"
+
+          sudo mysql <<EOF
+          -- Crear la base de datos
+          CREATE DATABASE IF NOT EXISTS $DB_NAME;
+
+          USE $DB_NAME;
+
+
+          CREATE TABLE IF NOT EXISTS students (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              name VARCHAR(50),
+              email VARCHAR(100) NOT NULL
+          );
+
+          -- Crear el usuario y otorgarle permisos
+          CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';
+          GRANT SELECT, INSERT ON $DB_NAME.* TO '$DB_USER'@'%';
+          FLUSH PRIVILEGES;
+          EOF
+          /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Database --region ${AWS::Region}
+
+
+Outputs:
+  PrivateIP:
+    Description: "IP Privada de la instancia EC2"
+    Value: !GetAtt Database.PrivateIp
