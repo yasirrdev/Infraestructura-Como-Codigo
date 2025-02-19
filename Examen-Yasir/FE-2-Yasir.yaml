@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Frontend - Yasir"
+
+Parameters: 
+  InstanceTypeParameter: 
+    Description: Elige un tipo de instancia.
+    Type: String
+    Default: t2.large
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - t2.large
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/canonical/ubuntu/server/jammy/stable/current/amd64/hvm/ebs-gp2/ami-id'
+    
+Resources:
+  FE2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      ImageId: !Ref LatestAmiId
+      SecurityGroups:
+        - !ImportValue securitygroup-Frontend
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash -xe
+            exec > /tmp/userdata.log 2>&1
+
+            apt update -y
+            apt install apache2 git -y
+
+            a2enmod proxy
+            a2enmod proxy_http
+
+            echo "<VirtualHost *:80>
+            DocumentRoot /var/www/html
+            ProxyPass \"/api/\" \"http://${IPBack}:8080/studentify/api/\"
+            ProxyPassReverse \"/api/\" \"http://${IPBack}:8080/studentify/api/\"
+            </VirtualHost>" > /etc/apache2/sites-available/frontend.conf
+            mkdir -p /var/www/html
+            mkdir -p /tmp/frontend_daw
+
+            git clone https://github.com/DavidHormigoRamirez/frontend_daw.git /tmp/frontend_daw
+ 
+            cp -r /tmp/frontend_daw/* /var/www/html/
+
+            sudo chmod -R 777 /var/www/html
+            sudo chown -R www-data:www-data /var/www/html
+
+            sed -i "s/CAMBIAR/\/api\/students/g" /var/www/html/index.html
+            sed -i "s/fetch('CAMBIAR',/fetch('\/api\/students',/g" /var/www/html/create.html
+            sed -i "1i <h1>Frontend-Yasir-F2</h1>" /var/www/html/index.html
+
+
+            a2dissite 000-default.conf
+            a2ensite frontend.conf
+            systemctl restart apache
+
+            /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource FE2 --region ${AWS::Region}
+          - { IPBack: !ImportValue IPPublicaBackend }
+Outputs:
+  FE2IP:
+      Description: "IP Privada de la instancia FE2"
+      Value: !GetAtt FE2.PublicIp
+      Export:
+        Name: !Sub "FE2IP" 

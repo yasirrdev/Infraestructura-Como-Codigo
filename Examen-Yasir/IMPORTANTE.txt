@@ -6,10 +6,10 @@
         2.Backend
         3.FE1
         4.FE2
-        5.LB
+        5.LoadBalancer
 
 ================================================================================================
                             ¡IMPORTANTE!
 ================================================================================================
 
-Los nombres de la pila deben deben de ser tal y como se ve en la lista.
+Los nombres de la pila deben deben de ser tal y como se ve en la lista, ya que durante el examen no he logrado cambiar los nombres de la pila.

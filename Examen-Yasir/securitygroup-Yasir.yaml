@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Plantilla Grupo de Seguridad"
+Description: "Plantilla Grupo de Seguridad - Yasir"
 
 Resources:
     Backend:
@@ -8,10 +8,6 @@ Resources:
         GroupDescription: Grupo de seguridad.
         GroupName: Backend
         SecurityGroupIngress:
-          - ToPort: 22
-            FromPort: 22
-            IpProtocol: tcp
-            CidrIp: 0.0.0.0/0
           - ToPort: 8080
             FromPort: 8080
             IpProtocol: tcp
@@ -22,10 +18,6 @@ Resources:
         GroupDescription: Grupo de seguridad.
         GroupName: Frontend
         SecurityGroupIngress:
-          - ToPort: 22
-            FromPort: 22
-            IpProtocol: tcp
-            CidrIp: 0.0.0.0/0
           - ToPort: 80
             FromPort: 80
             IpProtocol: tcp
@@ -36,10 +28,6 @@ Resources:
         GroupDescription: Grupo de seguridad.
         GroupName: LoadBalancer
         SecurityGroupIngress:
-          - ToPort: 22
-            FromPort: 22
-            IpProtocol: tcp
-            CidrIp: 0.0.0.0/0
           - ToPort: 80
             FromPort: 80
             IpProtocol: tcp

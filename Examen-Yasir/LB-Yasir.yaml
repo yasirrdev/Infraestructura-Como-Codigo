@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Plantilla LoadBalancer" 
+Description: "Plantilla LoadBalancer - Yasir" 
 
 Parameters: 
   InstanceTypeParameter: 
@@ -28,10 +28,9 @@ Resources:
             #!/bin/bash
             apt update -y
             apt install -y nginx
-            # Eliminar configuración por defecto
             rm -f /etc/nginx/sites-enabled/default
             cat > /etc/nginx/conf.d/loadbalancer.conf <<EOF
-            upstream frontend_servers {
+            upstream frontend {
                 server ${FE1}:80;
                 server ${FE2}:80;
             }
@@ -41,7 +40,7 @@ Resources:
                 server_name _;
                 
                 location / {
-                    proxy_pass http://frontend_servers;
+                    proxy_pass http://frontend;
                     proxy_set_header Host \$host;
                     proxy_set_header X-Real-IP \$remote_addr;
                     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -54,7 +53,7 @@ Resources:
 
 Outputs:
   LoadBalancerPublicIP:
-    Description: IP publica de la instancia Load Balancer
+    Description: "IP publica de la instancia Load Balancer"
     Value: !GetAtt LoadBalancerInstance.PublicIp
     Export:
       Name: LoadBalancerPublicIP

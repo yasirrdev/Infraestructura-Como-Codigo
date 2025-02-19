@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Plantilla Frontend"
+Description: "Plantilla Frontend - Yasir"
 
 Parameters:
   InstanceTypeParameter: 
@@ -28,56 +28,39 @@ Resources:
             #!/bin/bash -xe
             exec > /tmp/userdata.log 2>&1
 
-            # Configuración inicial
             apt update -y
             apt install apache2 git -y
 
-            # Configurar Apache
             a2enmod proxy
             a2enmod proxy_http
 
-            # Crear archivo frontend.conf para configurar el VirtualHost
             echo "<VirtualHost *:80>
             DocumentRoot /var/www/html
             # Redirigir /api/ al endpoint de Backend
             ProxyPass \"/api/\" \"http://${IPBack}:8080/studentify/api/\"
             ProxyPassReverse \"/api/\" \"http://${IPBack}:8080/studentify/api/\"
             </VirtualHost>" > /etc/apache2/sites-available/frontend.conf
-             #====================================================================#
-            # DESPLEGAR LA APLICACIÓN FRONTEND
-            #====================================================================#
-            # Crear directorios necesarios: directorio raíz de Apache y un directorio temporal para el repositorio
+
             mkdir -p /var/www/html
-            mkdir -p /tmp/frontend_repo
+            mkdir -p /tmp/frontend_daw
 
-            # Clonar el repositorio del Frontend desde GitHub
-            git clone https://github.com/DavidHormigoRamirez/frontend_daw.git /tmp/frontend_repo
+            git clone https://github.com/DavidHormigoRamirez/frontend_daw.git /tmp/frontend_daw
             # Copiar el contenido clonado al directorio raíz de Apache
-            cp -r /tmp/frontend_repo/* /var/www/html/
+            cp -r /tmp/frontend_daw/* /var/www/html/
 
-            # Asegurar permisos para poder modificar los archivos
             sudo chmod -R 777 /var/www/html
             sudo chown -R www-data:www-data /var/www/html
 
-            # Reemplazar el placeholder "CAMBIAR" en los archivos HTML por la ruta correcta '/api/students'
             sed -i "s/CAMBIAR/\/api\/students/g" /var/www/html/index.html
             sed -i "s/fetch('CAMBIAR',/fetch('\/api\/students',/g" /var/www/html/create.html
 
-            sed -i "1i <h1>F1</h1>" /var/www/html/index.html
+            sed -i "1i <h1>Frontend-Yasir-F1</h1>" /var/www/html/index.html
 
-            #====================================================================#
-            # ACTUALIZAR Y REINICIAR APACHE
-            #====================================================================#
-            # Deshabilitar el sitio por defecto
             a2dissite 000-default.conf
             # Habilitar el sitio configurado
             a2ensite frontend.conf
             systemctl restart apache2
-
-            #====================================================================#
-            # FINALIZACIÓN Y SEÑALIZACIÓN A CLOUDFORMATION
-            #====================================================================#
-            # Notificar a CloudFormation que la configuración de la instancia Frontend ha finalizado
+            
             /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource FE1 --region ${AWS::Region}
           - { IPBack: !ImportValue IPPublicaBackend }
 Outputs:

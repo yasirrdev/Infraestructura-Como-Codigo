@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Plantilla Backend - Yasir"
+
+Parameters: 
+  InstanceTypeParameter: 
+    Description: Elige un tipo de instancia. 
+    Type: String
+    Default: t2.large
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - t2.large
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/canonical/ubuntu/server/jammy/stable/current/amd64/hvm/ebs-gp2/ami-id'
+
+Resources:
+  Backend:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      ImageId: !Ref LatestAmiId
+      SecurityGroups:
+        - !ImportValue securitygroup-Backend
+      UserData:
+        Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            exec > /tmp/userdata.log 2>&1
+
+            apt update -y
+            apt install python3-pip -y
+            pip3 install --break-system-packages https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+            ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
+            apt update -y
+            apt install -y openjdk-21-jdk git maven
+
+            useradd -m -d /opt/tomcat -U -s /bin/false tomcat
+
+            cd /tmp
+            wget https://dlcdn.apache.org/tomcat/tomcat-11/v11.0.2/bin/apache-tomcat-11.0.2.tar.gz
+            tar xzvf apache-tomcat-11*tar.gz -C /opt/tomcat --strip-components=1
+            chown -R tomcat:tomcat /opt/tomcat/
+            chmod -R u+x /opt/tomcat/bin
+
+            sed -i '/<\/tomcat-users>/i \
+            <role rolename="manager-gui" />\n<user username="user" password="user" roles="manager-gui" />\n<role rolename="admin-gui" />\n<user username="admin" password="admin" roles="manager-gui,admin-gui" />' /opt/tomcat/conf/tomcat-users.xml
+            sed -i 's/<Valve /<!--<Valve /g; s/\/>/\/>-->/g' /opt/tomcat/webapps/manager/META-INF/context.xml
+            sed -i 's/<Valve /<!--<Valve /g; s/\/>/\/>-->/g' /opt/tomcat/webapps/host-manager/META-INF/context.xml
+
+         
+            echo '[Unit]
+            Description=Tomcat
+            After=network.target
+            
+            [Service]
+            Type=forking
+            
+            User=tomcat
+            Group=tomcat
+            
+            Environment="JAVA_HOME=/usr/lib/jvm/java-1.21.0-openjdk-amd64"
+            Environment="CATALINA_HOME=/opt/tomcat"
+            
+            ExecStart=/opt/tomcat/bin/startup.sh
+            ExecStop=/opt/tomcat/bin/shutdown.sh
+            
+            RestartSec=10
+            Restart=always
+            
+            [Install]
+            WantedBy=multi-user.target' | sudo tee /etc/systemd/system/tomcat.service
+            
+            systemctl daemon-reload
+            systemctl start tomcat
+            systemctl enable tomcat
+
+            cd /tmp
+            git clone https://github.com/DavidHormigoRamirez/studentify.git
+            chmod +x studentify/gradlew
+            cd studentify
+            ./gradlew build
+            cp build/libs/studentify-1.0.0.war  /opt/tomcat/webapps/studentify.war
+            systemctl restart tomcat
+            /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Backend --region ${AWS::Region}
+Outputs:
+  IPPrivada:
+    Description: "IP privada de la instancia Backend"
+    Value: !GetAtt Backend.PrivateIp
+    Export:
+      Name: IPPrivadaBackend
+  IPublica:
+    Description: "IP publica de la instancia Backend"
+    Value: !GetAtt Backend.PublicIp
+    Export:
+      Name: IPPublicaBackend     
